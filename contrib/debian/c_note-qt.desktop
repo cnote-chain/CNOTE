@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=C-Note
+Comment=C_Note P2P Cryptocurrency
+Comment[fr]=C_Note, monnaie virtuelle cryptographique pair à pair
+Comment[tr]=C_Note, eşten eşe kriptografik sanal para birimi
+Exec=c_note-qt %u
+Terminal=false
+Type=Application
+Icon=c_note128
+MimeType=x-scheme-handler/c_note;
+Categories=Office;Finance;
+StartupWMClass=c_note-qt

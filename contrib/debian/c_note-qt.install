@@ -1,0 +1,6 @@
+usr/local/bin/c_note-qt usr/bin
+share/pixmaps/c_note32.xpm usr/share/pixmaps
+share/pixmaps/c_note16.xpm usr/share/pixmaps
+share/pixmaps/c_note128.png usr/share/pixmaps
+debian/c_note-qt.desktop usr/share/applications
+debian/c_note-qt.protocol usr/share/kde4/services/

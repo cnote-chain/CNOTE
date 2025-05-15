@@ -1,0 +1,14 @@
+QT_TS = \
+  qt/locale/c_note_de.ts \
+  qt/locale/c_note_en.ts \
+  qt/locale/c_note_en_US.ts \
+  qt/locale/c_note_es.ts \
+  qt/locale/c_note_es_ES.ts \
+  qt/locale/c_note_fr_FR.ts \
+  qt/locale/c_note_hr_HR.ts \
+  qt/locale/c_note_it.ts \
+  qt/locale/c_note_ko_KR.ts \
+  qt/locale/c_note_nl.ts \
+  qt/locale/c_note_pl.ts \
+  qt/locale/c_note_ru.ts \
+  qt/locale/c_note_zh_CN.ts

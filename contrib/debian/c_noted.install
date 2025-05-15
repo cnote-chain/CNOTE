@@ -1,0 +1,3 @@
+usr/local/bin/c_noted usr/bin
+usr/local/bin/c_note-cli usr/bin
+debian/examples/c_note.conf etc/c_note

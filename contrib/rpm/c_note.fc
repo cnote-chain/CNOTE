@@ -1,0 +1,8 @@
+/usr/bin/c_note-cli		--	gen_context(system_u:object_r:c_note_exec_t,s0)
+/usr/sbin/c_noted		--	gen_context(system_u:object_r:c_note_exec_t,s0)
+/usr/lib(64)?/c_note/c_noted		--	gen_context(system_u:object_r:c_note_exec_t,s0)
+
+/etc/c_note(/.*)?		gen_context(system_u:object_r:c_note_conf_t,s0)
+/var/lib/c_note(/.*)?		gen_context(system_u:object_r:c_note_var_lib_t,s0)
+
+(/var)?/run/c_noted(/.*)?   gen_context(system_u:object_r:c_note_var_run_t,s0)

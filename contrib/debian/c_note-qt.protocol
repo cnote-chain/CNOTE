@@ -1,0 +1,11 @@
+[Protocol]
+exec=c_note-qt '%u'
+protocol=c_note
+input=none
+output=none
+helper=true
+listing=
+reading=false
+writing=false
+makedir=false
+deleting=false

@@ -20,7 +20,7 @@
 
 #define DECORATION_SIZE 65
 #define NUM_ITEMS 3
-#define SHOW_EMPTY_CHART_VIEW_THRESHOLD 4000
+#define SHOW_EMPTY_CHART_VIEW_THRESHOLD 0
 #define REQUEST_LOAD_TASK 1
 #define CHART_LOAD_MIN_TIME_INTERVAL 15
 
@@ -181,14 +181,12 @@ void DashboardWidget::loadWalletModel()
         filter->setFilterCaseSensitivity(Qt::CaseInsensitive);
         filter->setSortRole(Qt::EditRole);
 
-        // Read filter settings
-        QSettings settings;
-        quint32 filterByType = settings.value("transactionType", TransactionFilterProxy::ALL_TYPES).toInt();
-        int filterIndex = ui->comboBoxSortType->findData(filterByType); // Find index
-        filterByType = (filterIndex == -1) ? TransactionFilterProxy::ALL_TYPES : filterByType;
-        filter->setTypeFilter(filterByType);                // Set filter
-        ui->comboBoxSortType->setCurrentIndex(filterIndex); // Set item in ComboBox
+        // Show all wallet transactions (send, receive, rewards, etc.) in dashboard entries
+        filter->setTypeFilter(TransactionFilterProxy::ALL_TYPES);
+        ui->comboBoxSortType->setCurrentIndex(0); // Optionally reset the filter selection
+
         // Read sort settings
+        QSettings settings;
         changeSort(settings.value("transactionSort", SortTx::DATE_DESC).toInt());
 
         filter->setSourceModel(txModel);
@@ -526,8 +524,13 @@ const QMap<int, std::pair<qint64, qint64> > DashboardWidget::getAmountBy()
         QModelIndex modelIndex = stakesFilter->index(i, TransactionTableModel::ToAddress);
         qint64 amount = llabs(modelIndex.data(TransactionTableModel::AmountRole).toLongLong());
         QDate date = modelIndex.data(TransactionTableModel::DateRole).toDateTime().date();
-        bool isCNote = modelIndex.data(TransactionTableModel::TypeRole).toInt() != TransactionRecord::MNReward;
-
+        int txType = modelIndex.data(TransactionTableModel::TypeRole).toInt();
+        // Exclude MNReward entries unless the address belongs to this wallet
+        if (txType == TransactionRecord::MNReward) {
+            QString address = modelIndex.data(TransactionTableModel::ToAddress).toString();
+        }
+        bool isCNote = (txType != TransactionRecord::MNReward);
+       
         int time = 0;
         switch (chartShow) {
         case YEAR: {
@@ -549,8 +552,10 @@ const QMap<int, std::pair<qint64, qint64> > DashboardWidget::getAmountBy()
         if (amountBy.contains(time)) {
             if (isCNote) {
                 amountBy[time].first += amount;
-            } else
+            } else {
                 amountBy[time].second += amount;
+                if (amount > 0) hasMNRewards = true; // Set flag if any MNReward present
+            }
         } else {
             if (isCNote) {
                 amountBy[time] = std::make_pair(amount, 0);
@@ -588,10 +593,12 @@ bool DashboardWidget::loadChartData(bool withMonthNames)
         qreal mn = 0;
         if (chartData->amountsByCache.contains(num)) {
             std::pair<qint64, qint64> pair = chartData->amountsByCache[num];
-            cnote = (pair.first != 0) ? pair.first / 100000000 : 0;
-            mn = (pair.second != 0) ? pair.second / 100000000 : 0;
+            cnote = (pair.first != 0) ? static_cast<double>(pair.first) / 100000000.0 : 0.0;
+            mn = (pair.second != 0) ? static_cast<double>(pair.second) / 100000000.0 : 0.0;
             chartData->totalCNote += pair.first;
             chartData->totalMN += pair.second;
+            // Enforce minimum bar height for non-zero MNReward
+            if (mn > 0.0 && mn < 0.01) mn = 0.01;
         }
 
         chartData->xLabels << ((withMonthNames) ? monthsNames[num - 1] : QString::number(num));
@@ -697,7 +704,10 @@ void DashboardWidget::onChartRefreshed()
         series->setBarWidth(0.3);
     }
     axisX->append(chartData->xLabels);
-    axisY->setRange(0, chartData->maxValue);
+    // Ensure a minimum Y-axis range for visibility of small bars
+    double minYAxis = 0.004;
+    double yMax = (chartData->maxValue < minYAxis) ? minYAxis : chartData->maxValue;
+    axisY->setRange(0, yMax);
 
     // Controllers
     switch (chartShow) {

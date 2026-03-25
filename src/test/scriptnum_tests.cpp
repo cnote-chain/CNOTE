@@ -19,6 +19,46 @@ static const int64_t values[] = { 0, 1, -2, 127, 128, -255, 256, (1LL << 15) - 1
 
 static const int64_t offsets[] = { 1, 0x79, 0x80, 0x81, 0xFF, 0x7FFF, 0x8000, 0xFFFF, 0x10000};
 
+
+class CBigNum
+{
+public:
+    int64_t n;
+
+    CBigNum() : n(0) {}
+    CBigNum(int64_t _n) : n(_n) {}
+    CBigNum(const std::vector<unsigned char>& vch) : n(set_vch(vch)) {}
+
+    std::vector<unsigned char> getvch() const { return CScriptNum::serialize(n); }
+    int getint() const {
+        if (n > std::numeric_limits<int>::max()) return std::numeric_limits<int>::max();
+        if (n < std::numeric_limits<int>::min()) return std::numeric_limits<int>::min();
+        return (int)n;
+    }
+
+    bool operator==(const CBigNum& b) const { return n == b.n; }
+    bool operator!=(const CBigNum& b) const { return n != b.n; }
+    bool operator<(const CBigNum& b) const { return n < b.n; }
+    bool operator>(const CBigNum& b) const { return n > b.n; }
+    bool operator<=(const CBigNum& b) const { return n <= b.n; }
+    bool operator>=(const CBigNum& b) const { return n >= b.n; }
+
+    CBigNum operator+(const CBigNum& b) const { return CBigNum(n + b.n); }
+    CBigNum operator-(const CBigNum& b) const { return CBigNum(n - b.n); }
+    CBigNum operator-() const { return CBigNum(-n); }
+
+private:
+    static int64_t set_vch(const std::vector<unsigned char>& vch) {
+        if (vch.empty()) return 0;
+        int64_t result = 0;
+        for (size_t i = 0; i != vch.size(); ++i)
+            result |= static_cast<int64_t>(vch[i]) << 8*i;
+        if (vch.back() & 0x80)
+            return -((int64_t)(result & ~(0x80ULL << (8 * (vch.size() - 1)))));
+        return result;
+    }
+};
+
 static bool verify(const CBigNum& bignum, const CScriptNum& scriptnum)
 {
     return bignum.getvch() == scriptnum.getvch() && bignum.getint() == scriptnum.getint();

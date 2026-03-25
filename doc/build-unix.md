@@ -18,6 +18,7 @@ To Build
 ```bash
 ./autogen.sh
 ./configure
+chmod +x share/genbuild.sh
 make
 make install # optional
 ```

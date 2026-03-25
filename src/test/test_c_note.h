@@ -9,7 +9,7 @@
 #include "fs.h"
 #include "scheduler.h"
 #include "txdb.h"
-
+#include "random.h"
 #include <boost/thread.hpp>
 
 extern uint256 insecure_rand_seed;

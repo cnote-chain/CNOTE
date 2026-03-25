@@ -17,7 +17,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <deque>
+#include <mutex>
+#include <condition_variable>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <signal.h>
@@ -72,7 +74,7 @@ private:
     std::mutex cs;
     std::condition_variable cond;
     /* XXX in C++11 we can use std::unique_ptr here and avoid manual cleanup */
-    std::deque<WorkItem*> queue;
+    std::deque<WorkItem*> vQueue;
     bool running;
     size_t maxDepth;
 
@@ -85,19 +87,19 @@ public:
      */
     ~WorkQueue()
     {
-        while (!queue.empty()) {
-            delete queue.front();
-            queue.pop_front();
+        while (!vQueue.empty()) {
+            delete vQueue.front();
+            vQueue.pop_front();
         }
     }
     /** Enqueue a work item */
     bool Enqueue(WorkItem* item)
     {
         std::unique_lock<std::mutex> lock(cs);
-        if (queue.size() >= maxDepth) {
+        if (vQueue.size() >= maxDepth) {
             return false;
         }
-        queue.push_back(item);
+        vQueue.push_back(item);
         cond.notify_one();
         return true;
     }
@@ -108,12 +110,12 @@ public:
             WorkItem* i = nullptr;
             {
                 std::unique_lock<std::mutex> lock(cs);
-                while (running && queue.empty())
+                while (running && vQueue.empty())
                     cond.wait(lock);
                 if (!running)
                     break;
-                i = queue.front();
-                queue.pop_front();
+                i = vQueue.front();
+                vQueue.pop_front();
             }
             (*i)();
             delete i;
@@ -131,7 +133,7 @@ public:
     size_t Depth()
     {
         std::unique_lock<std::mutex> lock(cs);
-        return queue.size();
+        return vQueue.size();
     }
 };
 

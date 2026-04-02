@@ -121,6 +121,8 @@ enum BindFlags {
 
 static const char* FEE_ESTIMATES_FILENAME = "fee_estimates.dat";
 CClientUIInterface uiInterface; // Declared but not defined in guiinterface.h
+static boost::signals2::connection rpcNotifyBlockChangeConnection;
+static boost::signals2::connection blockNotifyGenesisWaitConnection;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -386,12 +388,12 @@ bool static Bind(CConnman& connman, const CService& addr, unsigned int flags)
 
 void OnRPCStarted()
 {
-    uiInterface.NotifyBlockTip.connect(RPCNotifyBlockChange);
+    rpcNotifyBlockChangeConnection = uiInterface.NotifyBlockTip.connect(RPCNotifyBlockChange);
 }
 
 void OnRPCStopped()
 {
-    uiInterface.NotifyBlockTip.disconnect(RPCNotifyBlockChange);
+    rpcNotifyBlockChangeConnection.disconnect();
     //RPCNotifyBlockChange(0);
     g_best_block_cv.notify_all();
     LogPrint(BCLog::RPC, "RPC stopped.\n");
@@ -1747,7 +1749,7 @@ bool AppInitMain()
     // Either install a handler to notify us when genesis activates, or set fHaveGenesis directly.
     // No locking, as this happens before any background thread is started.
     if (chainActive.Tip() == nullptr) {
-        uiInterface.NotifyBlockTip.connect(BlockNotifyGenesisWait);
+        blockNotifyGenesisWaitConnection = uiInterface.NotifyBlockTip.connect(BlockNotifyGenesisWait);
     } else {
         fHaveGenesis = true;
     }
@@ -1787,7 +1789,7 @@ bool AppInitMain()
         while (!fHaveGenesis) {
             condvar_GenesisWait.wait(lockG);
         }
-        uiInterface.NotifyBlockTip.disconnect(BlockNotifyGenesisWait);
+        blockNotifyGenesisWaitConnection.disconnect();
     }
 
     uiInterface.InitMessage(_("Calculating money supply..."));

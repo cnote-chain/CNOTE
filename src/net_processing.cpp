@@ -469,20 +469,25 @@ bool GetNodeStateStats(NodeId nodeid, CNodeStateStats& stats)
     return true;
 }
 
+static boost::signals2::connection connProcessMessages;
+static boost::signals2::connection connSendMessages;
+static boost::signals2::connection connInitializeNode;
+static boost::signals2::connection connFinalizeNode;
+
 void RegisterNodeSignals(CNodeSignals& nodeSignals)
 {
-    nodeSignals.ProcessMessages.connect(&ProcessMessages);
-    nodeSignals.SendMessages.connect(&SendMessages);
-    nodeSignals.InitializeNode.connect(&InitializeNode);
-    nodeSignals.FinalizeNode.connect(&FinalizeNode);
+    connProcessMessages = nodeSignals.ProcessMessages.connect(&ProcessMessages);
+    connSendMessages = nodeSignals.SendMessages.connect(&SendMessages);
+    connInitializeNode = nodeSignals.InitializeNode.connect(&InitializeNode);
+    connFinalizeNode = nodeSignals.FinalizeNode.connect(&FinalizeNode);
 }
 
 void UnregisterNodeSignals(CNodeSignals& nodeSignals)
 {
-    nodeSignals.ProcessMessages.disconnect(&ProcessMessages);
-    nodeSignals.SendMessages.disconnect(&SendMessages);
-    nodeSignals.InitializeNode.disconnect(&InitializeNode);
-    nodeSignals.FinalizeNode.disconnect(&FinalizeNode);
+    connProcessMessages.disconnect();
+    connSendMessages.disconnect();
+    connInitializeNode.disconnect();
+    connFinalizeNode.disconnect();
 }
 
 

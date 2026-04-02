@@ -15,15 +15,44 @@ the usage of the absolute path.
 To Build
 ---------------------
 
+If you have all dependencies installed system-wide, you can build conventionally:
+This will build c_note-qt as well, if the dependencies are met.
+
+### Complete Build Using Manual Berkeley DB 4.8
+
+To ensure you can build from first to last step without any errors related to Berkeley DB, use the following sequence. This downloads BDB 4.8, manually patches it for modern compilers, builds it, and configures the project to use it:
+
 ```bash
+# Navigate to the project root directory
+cd ~/CNOTE
+
+# Download and extract BDB 4.8
+wget 'http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz'
+tar -xzvf db-4.8.30.NC.tar.gz
+cd db-4.8.30.NC/build_unix/
+
+# Build BDB 4.8 statically
+../dist/configure --enable-cxx --disable-shared --with-pic 
+
+# Fix compatibility issue with modern compilers
+sed -i 's/__atomic_compare_exchange/__db_atomic_compare_exchange/g' ../dbinc/atomic.h
+
+make
+
+# Return to the project root
+cd ../..
+
+# Prepare the build system
+chmod +x ./autogen.sh
 ./autogen.sh
-./configure
+
+# Configure the project using your new BDB 4.8 location
+./configure LDFLAGS="-L$(pwd)/db-4.8.30.NC/build_unix" CPPFLAGS="-I$(pwd)/db-4.8.30.NC/build_unix"
+
+# Build the project
 chmod +x share/genbuild.sh
 make
-make install # optional
 ```
-
-This will build c_note-qt as well, if the dependencies are met.
 
 Dependencies
 ---------------------

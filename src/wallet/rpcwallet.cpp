@@ -3909,16 +3909,16 @@ UniValue autocombinerewards(const JSONRPCRequest& request)
 
             "\nArguments:\n"
             "1. enable          (boolean, required) Enable auto combine (true) or disable (false)\n"
-            "2. threshold       (numeric, optional) Threshold amount (default: 0)\n"
+            "2. threshold       (numeric, optional) Threshold amount in " + CURRENCY_UNIT + " (default: 0). Decimals are allowed (e.g. 0.001).\n"
 
             "\nExamples:\n" +
-            HelpExampleCli("autocombinerewards", "true 500") + HelpExampleRpc("autocombinerewards", "true 500"));
+            HelpExampleCli("autocombinerewards", "true 0.001") + HelpExampleRpc("autocombinerewards", "true 0.001"));
 
     CWalletDB walletdb(pwalletMain->GetDBHandle());
     CAmount nThreshold = 0;
 
     if (fEnable)
-        nThreshold = request.params[1].get_int();
+        nThreshold = AmountFromValue(request.params[1]);
 
     pwalletMain->fCombineDust = fEnable;
     pwalletMain->nAutoCombineThreshold = nThreshold;

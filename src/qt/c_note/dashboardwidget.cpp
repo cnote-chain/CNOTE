@@ -13,6 +13,7 @@
 #include "qt/c_note/txrow.h"
 #include "utiltime.h"
 #include "walletmodel.h"
+#include <QBoxLayout>
 #include <QGraphicsLayout>
 #include <QList>
 #include <QModelIndex>
@@ -207,6 +208,38 @@ void DashboardWidget::loadWalletModel()
 
         // Notification pop-up for new transaction
         connect(txModel, &TransactionTableModel::rowsInserted, this, &DashboardWidget::processNewTransaction);
+
+        // Insert "Load more" button directly below the transactions list. Done
+        // programmatically so we don't have to touch dashboardwidget.ui.
+        // Only the latest 100 txs are decomposed at open; the button fetches
+        // the next batch on demand, keeping wallet startup snappy.
+        if (!m_loadMoreBtn) {
+            QWidget* parent = ui->listTransactions->parentWidget();
+            QBoxLayout* parentLayout = parent ? qobject_cast<QBoxLayout*>(parent->layout()) : nullptr;
+            if (parentLayout) {
+                m_loadMoreBtn = new QPushButton(tr("Load more transactions"), parent);
+                m_loadMoreBtn->setCursor(Qt::PointingHandCursor);
+                m_loadMoreBtn->setVisible(false);
+                // Match the wallet's existing primary button theme.
+                setCssBtnPrimary(m_loadMoreBtn);
+                m_loadMoreBtn->setMinimumHeight(40);
+                m_loadMoreBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+                m_loadMoreBtn->setContentsMargins(20, 8, 20, 8);
+                int idx = parentLayout->indexOf(ui->listTransactions);
+                // Wrap in its own row with horizontal margins so it doesn't hug
+                // the window edges or get clipped by the parent layout.
+                QHBoxLayout* row = new QHBoxLayout();
+                row->setContentsMargins(20, 6, 20, 10);
+                row->addWidget(m_loadMoreBtn);
+                parentLayout->insertLayout(idx + 1, row);
+                connect(m_loadMoreBtn, &QPushButton::clicked, this, [this]() {
+                    if (txModel) txModel->loadMore();
+                });
+            }
+        }
+        connect(txModel, &TransactionTableModel::loadStateChanged,
+                this, &DashboardWidget::updateLoadMoreButton);
+        updateLoadMoreButton();
 #ifdef USE_QTCHARTS
         onHideChartsChanged(walletModel->getOptionsModel()->isHideCharts());
         connect(walletModel->getOptionsModel(), &OptionsModel::hideChartsChanged, this,
@@ -215,6 +248,20 @@ void DashboardWidget::loadWalletModel()
     }
     // update the display unit, to not use the default ("CNOTE")
     updateDisplayUnit();
+}
+
+void DashboardWidget::updateLoadMoreButton()
+{
+    if (!m_loadMoreBtn || !txModel) return;
+    const int loaded = txModel->size();
+    const int total = txModel->totalWalletTxCount();
+    const bool hasMore = total > loaded;
+    m_loadMoreBtn->setVisible(hasMore);
+    m_loadMoreBtn->setEnabled(txModel->canLoadMore());
+    if (hasMore) {
+        m_loadMoreBtn->setText(tr("Load more transactions (%1 of %2 shown)")
+                                   .arg(loaded).arg(total));
+    }
 }
 
 void DashboardWidget::onTxArrived(const QString& hash, const bool isCoinStake, const bool isMNReward, const bool isCSAnyType)
@@ -932,6 +979,19 @@ void DashboardWidget::processNewTransaction(const QModelIndex& parent, int start
         return;
 
     if (!txModel || txModel->processingQueuedTransactions())
+        return;
+
+    // Suppress popups for historical transactions discovered during catch-up
+    // sync (e.g. days-old MN reward txs). inInitialBlockDownload() flips false
+    // long before sync is actually done, so rowsInserted still fires for stale
+    // txs — without this guard those generate a popup storm that freezes UI.
+    // This only affects popup display; the tx itself is still added to the
+    // model and counted in the balance normally.
+    //
+    // Note: Date column EditRole returns rec->time (int64 unix seconds), NOT
+    // a QDateTime — read as integer and compare against GetTime().
+    const qint64 txTime = txModel->index(start, TransactionTableModel::Date, parent).data(Qt::EditRole).toLongLong();
+    if (txTime > 0 && (GetTime() - txTime) > 90)
         return;
 
     QString date = txModel->index(start, TransactionTableModel::Date, parent).data().toString();

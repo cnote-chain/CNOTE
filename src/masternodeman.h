@@ -147,6 +147,10 @@ public:
     /// Check all transactions in a block, for spent masternode collateral outpoints (marking them as spent)
     void CheckSpentCollaterals(const std::vector<CTransactionRef>& vtx);
 
+    /// One-time sweep: remove masternodes whose collateral UTXO no longer matches the required amount at nHeight.
+    /// Used to evict legacy-collateral masternodes when the network crosses UPGRADE_BLOCK_HEIGHT.
+    void RemoveLegacyCollateral(int nHeight);
+
     /// Find an entry in the masternode list that is next to be paid
     const CMasternode* GetNextMasternodeInQueueForPayment(int nBlockHeight, bool fFilterSigTime, int& nCount, const CBlockIndex* pChainTip = nullptr) const;
 

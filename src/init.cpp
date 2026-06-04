@@ -1810,6 +1810,10 @@ bool AppInitMain()
     else if (readResult != CMasternodeDB::Ok) {
         LogPrintf("Error reading mncache.dat - cached data discarded\n");
     }
+    // If we restarted/synced past the collateral upgrade height, evict any cached
+    // masternodes whose collateral no longer matches the required amount.
+    if (nChainHeight > UPGRADE_BLOCK_HEIGHT)
+        mnodeman.RemoveLegacyCollateral(nChainHeight);
 
     uiInterface.InitMessage(_("Loading budget cache..."));
 

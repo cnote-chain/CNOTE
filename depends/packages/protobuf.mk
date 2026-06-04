@@ -5,6 +5,7 @@ $(package)_file_name=$(native_$(package)_file_name)
 $(package)_sha256_hash=$(native_$(package)_sha256_hash)
 $(package)_dependencies=native_$(package)
 $(package)_cxxflags=-std=c++11
+$(package)_cxxflags_darwin=-isystem $(host_prefix)/native/include/c++/v1
 
 define $(package)_set_vars
   $(package)_config_opts=--disable-shared --with-protoc=$(build_prefix)/bin/protoc

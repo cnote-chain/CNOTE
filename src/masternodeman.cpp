@@ -476,6 +476,42 @@ void CMasternodeMan::CheckSpentCollaterals(const std::vector<CTransactionRef>& v
     }
 }
 
+void CMasternodeMan::RemoveLegacyCollateral(int nHeight)
+{
+    // cs_main is required to read pcoinsTip; cs guards the masternode maps.
+    LOCK2(cs_main, cs);
+    const CAmount requiredCollateral = GetMNCollateral(nHeight) * COIN;
+    int nRemoved = 0;
+    auto it = mapMasternodes.begin();
+    while (it != mapMasternodes.end()) {
+        const Coin& collateralUtxo = pcoinsTip->AccessCoin(it->second->vin.prevout);
+        if (collateralUtxo.IsSpent() || collateralUtxo.out.nValue != requiredCollateral) {
+            LogPrintf("%s: Removing masternode %s with outdated collateral (have=%d, required=%d)\n",
+                __func__, it->first.ToString(),
+                collateralUtxo.IsSpent() ? 0 : (collateralUtxo.out.nValue / COIN), requiredCollateral / COIN);
+
+            // drop any cached broadcast for this vin so a stale entry can't re-apply it
+            auto itb = mapSeenMasternodeBroadcast.begin();
+            while (itb != mapSeenMasternodeBroadcast.end()) {
+                if (itb->second.vin.prevout == it->first) {
+                    masternodeSync.mapSeenSyncMNB.erase(itb->first);
+                    itb = mapSeenMasternodeBroadcast.erase(itb);
+                } else {
+                    ++itb;
+                }
+            }
+
+            it = mapMasternodes.erase(it);
+            nRemoved++;
+        } else {
+            ++it;
+        }
+    }
+    if (nRemoved > 0)
+        LogPrintf("%s: Removed %d masternode(s) with outdated collateral at height %d. New total: %d\n",
+            __func__, nRemoved, nHeight, mapMasternodes.size());
+}
+
 //
 // Deterministically select the oldest/best masternode to pay on the network
 //

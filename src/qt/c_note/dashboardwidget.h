@@ -15,6 +15,7 @@
 
 #include <atomic>
 #include <cstdlib>
+#include <QPushButton>
 #include <QWidget>
 #include <QLineEdit>
 #include <QMap>
@@ -141,6 +142,10 @@ private:
     TransactionTableModel* txModel{nullptr};
     int nDisplayUnit{-1};
     bool isSync{false};
+
+    // "Load more" button, inserted programmatically below the transactions list.
+    QPushButton* m_loadMoreBtn{nullptr};
+    void updateLoadMoreButton();
 
     void changeSort(int nSortIndex);
 

@@ -19,9 +19,13 @@
 /* Depth of the block pinged by masternodes */
 static const unsigned int MNPING_DEPTH = 12;
 
+/* Block height at which the masternode collateral amount changes */
+static const int UPGRADE_BLOCK_HEIGHT = 540000;
+
 /* Masternode collateral amount */
-inline int64_t GetMNCollateral(int nHeight) 
+inline int64_t GetMNCollateral(int nHeight)
 {
+    if (nHeight > UPGRADE_BLOCK_HEIGHT) return 3;
     return 2;
 }
 

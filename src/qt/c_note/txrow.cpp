@@ -9,6 +9,9 @@
 #include "guiutil.h"
 #include "qt/c_note/qtutils.h"
 
+#include <QHash>
+#include <QIcon>
+
 TxRow::TxRow(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::TxRow)
@@ -145,7 +148,17 @@ void TxRow::setType(bool isLightTheme, int type, bool isConfirmed)
     }
     setCssProperty(ui->lblAmountTop, css, true);
     if (isDoubleAmount) setCssProperty(ui->lblAmountBottom, cssAmountBottom, true);
-    ui->icon->setIcon(QIcon(path));
+
+    // Icon cache: rebuilding QIcon on every row repaint triggers
+    // QPixmap::fromWinHICON on Windows in a tight loop (~25 calls/sec observed
+    // in debug.log) which freezes the UI. Load each path once and reuse.
+    // This does not affect any wallet logic — only display.
+    static QHash<QString, QIcon> iconCache;
+    auto it = iconCache.find(path);
+    if (it == iconCache.end()) {
+        it = iconCache.insert(path, QIcon(path));
+    }
+    ui->icon->setIcon(it.value());
 }
 
 TxRow::~TxRow()

@@ -25,6 +25,7 @@
 #include "sapling/sapling_operation.h"
 #include "spork.h"
 #include "sync.h"
+#include "validation.h" // for IsInitialBlockDownload()
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h" // for BackupWallet
 #include <iostream>
@@ -240,8 +241,23 @@ void WalletModel::pollBalanceChanged()
 {
     if (processingBalance || !m_client_model) return;
 
+    // Detect the end of the initial block download. While syncing, per-tx GUI
+    // updates are suppressed (see NotifyTransactionChanged) to avoid freezing
+    // the GUI thread, so transactions discovered during sync aren't in the
+    // model. On the IBD true->false edge, reload the transaction list once. We
+    // only arm this if IBD was actually observed this session, so an
+    // already-synced wallet doesn't pay a redundant reload at startup.
+    const bool inIBD = m_client_model->inInitialBlockDownload();
+    if (inIBD) {
+        m_sawInitialBlockDownload = true;
+    } else if (m_sawInitialBlockDownload) {
+        m_sawInitialBlockDownload = false;
+        if (transactionTableModel)
+            QMetaObject::invokeMethod(transactionTableModel, "reload", Qt::QueuedConnection);
+    }
+
     // Wait a little bit more when the wallet is reindexing and/or importing, no need to lock cs_main so often.
-    if (IsImportingOrReindexing() || m_client_model->inInitialBlockDownload()) {
+    if (IsImportingOrReindexing() || inIBD) {
         static uint8_t waitLonger = 0;
         waitLonger++;
         if (waitLonger < 6) // 30 seconds
@@ -756,14 +772,18 @@ static bool fQueueNotifications = false;
 static std::vector<std::pair<uint256, ChangeType> > vQueueNotifications;
 static void NotifyTransactionChanged(WalletModel* walletmodel, CWallet* wallet, const uint256& hash, ChangeType status)
 {
+    // Skip per-tx GUI updates during the initial block download — the flood of
+    // notifications freezes the GUI thread at 100% CPU for the whole sync. The
+    // balance is still refreshed by the periodic poll, and the transaction list
+    // is reloaded once when IBD completes. See the matching guard in
+    // transactiontablemodel.cpp's NotifyTransactionChanged.
+    if (IsInitialBlockDownload()) return;
+
     if (fQueueNotifications) {
         vQueueNotifications.emplace_back(hash, status);
         return;
     }
 
-    QString strHash = QString::fromStdString(hash.GetHex());
-
-    qDebug() << "NotifyTransactionChanged : " + strHash + " status= " + QString::number(status);
     QMetaObject::invokeMethod(walletmodel, "updateTransaction", Qt::QueuedConnection /*,
                               Q_ARG(QString, strHash),
                               Q_ARG(int, status)*/

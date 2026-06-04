@@ -718,6 +718,10 @@ public:
     //Auto Combine Inputs
     bool fCombineDust;
     CAmount nAutoCombineThreshold;
+    // True once the v2 (satoshi-denominated) autocombine entry has been read
+    // from the wallet DB. Used so the legacy whole-coin entry does not clobber
+    // it regardless of DB iteration order during load.
+    bool fAutoCombineSettingsV2Loaded;
 
     /** Get database handle used by this wallet. Ideally this function would
      * not be necessary.

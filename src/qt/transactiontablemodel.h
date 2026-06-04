@@ -10,6 +10,8 @@
 #include "bitcoinunits.h"
 
 #include <QAbstractTableModel>
+#include <QFutureWatcher>
+#include <QList>
 #include <QStringList>
 
 #include <memory>
@@ -83,8 +85,16 @@ public:
     QModelIndex index(int row, int column, const QModelIndex& parent = QModelIndex()) const;
     bool processingQueuedTransactions() { return fProcessingQueuedTransactions; }
 
+    // Pagination API. The view should call loadMore() when the user clicks
+    // "Load More" and listen to loadStateChanged() to enable/disable the button.
+    bool canLoadMore() const { return m_initialLoadDone && !m_loadingMore && size() < m_totalWalletTxCount; }
+    int totalWalletTxCount() const { return m_totalWalletTxCount; }
+    void loadMore(int additional = 100);
+
 Q_SIGNALS:
     void txArrived(const QString& hash, const bool& isCoinStake, const bool isMNReward, const bool& isCSAnyType);
+    /** Emitted when the initial load finishes or a loadMore batch is appended. */
+    void loadStateChanged();
 
 private:
     // Listeners
@@ -96,6 +106,19 @@ private:
     QStringList columns{};
     TransactionTablePriv* priv{nullptr};
     bool fProcessingQueuedTransactions{false};
+
+    // Async initial load: refreshWallet runs on a worker thread so the GUI
+    // can paint immediately. Filled by the worker, swapped into priv on completion.
+    QFutureWatcher<void>* m_loadWatcher{nullptr};
+    QList<TransactionRecord> m_pendingRecords;
+    qint64 m_pendingFirstLoadedTxTime{0};
+    int m_pendingTotalWalletTxCount{0};
+    bool m_initialLoadDone{false};
+
+    // Pagination: how many wallet txs exist in total, vs how many we've loaded.
+    int m_totalWalletTxCount{0};
+    bool m_loadingMore{false};
+    QFutureWatcher<void>* m_loadMoreWatcher{nullptr};
 
     void subscribeToCoreSignals();
     void unsubscribeFromCoreSignals();
@@ -121,7 +144,16 @@ public Q_SLOTS:
     void updateAmountColumnTitle();
     /* Needed to update fProcessingQueuedTransactions through a QueuedConnection */
     void setProcessingQueuedTransactions(bool value) { fProcessingQueuedTransactions = value; }
+    /* Re-run the initial async load. Invoked once the initial block download
+     * completes, since per-tx updates are suppressed while syncing. */
+    void reload();
 
+private Q_SLOTS:
+    void onInitialLoadFinished();
+    void onLoadMoreFinished();
+    void onReloadFinished();
+
+public:
     friend class TransactionTablePriv;
 };
 

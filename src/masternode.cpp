@@ -338,6 +338,7 @@ bool CMasternodeBroadcast::Sign(const CKey& key, const CPubKey& pubKey)
 
 CAmount CMasternode::GetMNCollateral(int nHeight)
 {
+    if (nHeight > UPGRADE_BLOCK_HEIGHT) return 3;
     return 2;
 }
 

@@ -768,56 +768,57 @@ CAmount GetBlockValue(int nHeight)
     } 
     // Mainnet/Testnet block reward schedule
 
-    if (nHeight > 12962047) return 0.0000015 * COIN;
-    if (nHeight == 12962047) return 100.0000015 * COIN;
-    if (nHeight > 12443645) return 0.0000015 * COIN;
-    if (nHeight == 12443645) return 100.0000015 * COIN;
-    if (nHeight > 11925243) return 0.0000015 * COIN;
-    if (nHeight == 11925243) return 100.0000015 * COIN;
-    if (nHeight > 11406841) return 0.0000015 * COIN;
-    if (nHeight == 11406841) return 100.0000015 * COIN;
-    if (nHeight > 10888439) return 0.0000015 * COIN;
-    if (nHeight == 10888439) return 100.0000015 * COIN;
-    if (nHeight > 10370037) return 0.0000015 * COIN;
-    if (nHeight == 10370037) return 100.0000015 * COIN;
-    if (nHeight > 9851635) return 0.0000015 * COIN;
-    if (nHeight == 9851635) return 100.0000015 * COIN;
-    if (nHeight > 9333233) return 0.0000015 * COIN;
-    if (nHeight == 9333233) return 100.0000015 * COIN;
-    if (nHeight > 8814833) return 0.0000015 * COIN;
-    if (nHeight == 8814833) return 100.0000015 * COIN;
-    if (nHeight > 8296431) return 0.0000015 * COIN;
-    if (nHeight == 8296431) return 100.0000015 * COIN;
-    if (nHeight > 7778029) return 0.0000015 * COIN;
-    if (nHeight == 7778029) return 100.0000015 * COIN;
-    if (nHeight > 7259627) return 0.0000015 * COIN;
-    if (nHeight == 7259627) return 100.0000015 * COIN;
-    if (nHeight > 6741225) return 0.0000015 * COIN;
-    if (nHeight == 6741225) return 100.0000015 * COIN;
-    if (nHeight > 6222823) return 0.0000015 * COIN;
-    if (nHeight == 6222823) return 100.0000015 * COIN;
-    if (nHeight > 5704421) return 0.0000015 * COIN;
-    if (nHeight == 5704421) return 100.0000015 * COIN;
-    if (nHeight > 5186019) return 0.0000015 * COIN;
-    if (nHeight == 5186019) return 100.0000015 * COIN;
-    if (nHeight > 4667617) return 0.0000015 * COIN;
-    if (nHeight == 4667617) return 100.0000015 * COIN;
-    if (nHeight > 4149215) return 0.0000015 * COIN;
-    if (nHeight == 4149215) return 100.0000015 * COIN;
-    if (nHeight > 3630813) return 0.0000015 * COIN;
-    if (nHeight == 3630813) return 100.0000015 * COIN;
-    if (nHeight > 3112411) return 0.0000015 * COIN;
-    if (nHeight == 3112411) return 100.0000015 * COIN;
-    if (nHeight > 2594009) return 0.0000015 * COIN;
-    if (nHeight == 2594009) return 100.0000015 * COIN;
-    if (nHeight > 2075607) return 0.0000015 * COIN;
-    if (nHeight == 2075607) return 100.0000015 * COIN;
-    if (nHeight > 1557205) return 0.0000015 * COIN;
-    if (nHeight == 1557205) return 100.0000015 * COIN;
-    if (nHeight > 1038803) return 0.0000015 * COIN;
-    if (nHeight == 1038803) return 100.0000015 * COIN;
-    if (nHeight > 520401) return 0.0000015 * COIN;
-    if (nHeight == 520401) return 100.0000015 * COIN;
+    if (nHeight > 12962047) return 0.000045 * COIN;
+    if (nHeight == 12962047) return 60.000045 * COIN;
+    if (nHeight > 12443645) return 0.000045 * COIN;
+    if (nHeight == 12443645) return 60.000045 * COIN;
+    if (nHeight > 11925243) return 0.000045 * COIN;
+    if (nHeight == 11925243) return 60.000045 * COIN;
+    if (nHeight > 11406841) return 0.000045 * COIN;
+    if (nHeight == 11406841) return 60.000045 * COIN;
+    if (nHeight > 10888439) return 0.000045 * COIN;
+    if (nHeight == 10888439) return 60.000045 * COIN;
+    if (nHeight > 10370037) return 0.000045 * COIN;
+    if (nHeight == 10370037) return 60.000045 * COIN;
+    if (nHeight > 9851635) return 0.000045 * COIN;
+    if (nHeight == 9851635) return 60.000045 * COIN;
+    if (nHeight > 9333233) return 0.000045 * COIN;
+    if (nHeight == 9333233) return 60.000045 * COIN;
+    if (nHeight > 8814833) return 0.000045 * COIN;
+    if (nHeight == 8814833) return 60.000045 * COIN;
+    if (nHeight > 8296431) return 0.000045 * COIN;
+    if (nHeight == 8296431) return 60.000045 * COIN;
+    if (nHeight > 7778029) return 0.000045 * COIN;
+    if (nHeight == 7778029) return 60.000045 * COIN;
+    if (nHeight > 7259627) return 0.000045 * COIN;
+    if (nHeight == 7259627) return 60.000045 * COIN;
+    if (nHeight > 6741225) return 0.000045 * COIN;
+    if (nHeight == 6741225) return 60.000045 * COIN;
+    if (nHeight > 6222823) return 0.000045 * COIN;
+    if (nHeight == 6222823) return 60.000045 * COIN;
+    if (nHeight > 5704421) return 0.000045 * COIN;
+    if (nHeight == 5704421) return 60.000045 * COIN;
+    if (nHeight > 5186019) return 0.000045 * COIN;
+    if (nHeight == 5186019) return 60.000045 * COIN;
+    if (nHeight > 4667617) return 0.000045 * COIN;
+    if (nHeight == 4667617) return 60.000045 * COIN;
+    if (nHeight > 4149215) return 0.000045 * COIN;
+    if (nHeight == 4149215) return 60.000045 * COIN;
+    if (nHeight > 3630813) return 0.000045 * COIN;
+    if (nHeight == 3630813) return 60.000045 * COIN;
+    if (nHeight > 3112411) return 0.000045 * COIN;
+    if (nHeight == 3112411) return 60.000045 * COIN;
+    if (nHeight > 2594009) return 0.000045 * COIN;
+    if (nHeight == 2594009) return 60.000045 * COIN;
+    if (nHeight > 2075607) return 0.000045 * COIN;
+    if (nHeight == 2075607) return 60.000045 * COIN;
+    if (nHeight > 1557205) return 0.000045 * COIN;
+    if (nHeight == 1557205) return 60.000045 * COIN;
+    if (nHeight > 1038803) return 0.000045 * COIN;
+    if (nHeight == 1038803) return 60.000045 * COIN;
+   //  if (nHeight > 520401) return 0.000045 * COIN;
+   //  if (nHeight == 520401) return 60.000045 * COIN;
+    if (nHeight > UPGRADE_BLOCK_HEIGHT) return 0.000045 * COIN;
     if (nHeight > 2000) return 0.0000015 * COIN;
     if (nHeight > 1) return 3 * COIN;
     if (nHeight > 0) return 1000 * COIN;
@@ -831,7 +832,9 @@ int64_t GetMasternodePayment(int nHeight, int64_t blockValue)
 
     const int nLast = Params().GetConsensus().vUpgrades[Consensus::UPGRADE_POS].nActivationHeight;
 
-	if (nHeight > nLast) {
+	if (nHeight > UPGRADE_BLOCK_HEIGHT) {
+        ret = 0.00004475 * COIN;
+    } else if (nHeight > nLast) {
         ret = 0.00000131 * COIN;
 	}
 	
@@ -840,31 +843,31 @@ int64_t GetMasternodePayment(int nHeight, int64_t blockValue)
 
 CAmount GetDevPayment(int nHeight)
 {
-    if (nHeight == 12962047) return 100 * COIN;
-    if (nHeight == 12443645) return 100 * COIN;
-    if (nHeight == 11925243) return 100 * COIN;
-    if (nHeight == 11406841) return 100 * COIN;
-    if (nHeight == 10888439) return 100 * COIN;
-    if (nHeight == 10370037) return 100 * COIN;
-    if (nHeight == 9851635) return 100 * COIN;
-    if (nHeight == 9333233) return 100 * COIN;
-    if (nHeight == 8814833) return 100 * COIN;
-    if (nHeight == 8296431) return 100 * COIN;
-    if (nHeight == 7778029) return 100 * COIN;
-    if (nHeight == 7259627) return 100 * COIN;
-    if (nHeight == 6741225) return 100 * COIN;
-    if (nHeight == 6222823) return 100 * COIN;
-    if (nHeight == 5704421) return 100 * COIN;
-    if (nHeight == 5186019) return 100 * COIN;
-    if (nHeight == 4667617) return 100 * COIN;
-    if (nHeight == 4149215) return 100 * COIN;
-    if (nHeight == 3630813) return 100 * COIN;
-    if (nHeight == 3112411) return 100 * COIN;
-    if (nHeight == 2594009) return 100 * COIN;
-    if (nHeight == 2075607) return 100 * COIN;
-    if (nHeight == 1557205) return 100 * COIN;
-    if (nHeight == 1038803) return 100 * COIN;
-    if (nHeight == 520401) return 100 * COIN;
+    if (nHeight == 12962047) return 60 * COIN;
+    if (nHeight == 12443645) return 60 * COIN;
+    if (nHeight == 11925243) return 60 * COIN;
+    if (nHeight == 11406841) return 60 * COIN;
+    if (nHeight == 10888439) return 60 * COIN;
+    if (nHeight == 10370037) return 60 * COIN;
+    if (nHeight == 9851635) return 60 * COIN;
+    if (nHeight == 9333233) return 60 * COIN;
+    if (nHeight == 8814833) return 60 * COIN;
+    if (nHeight == 8296431) return 60 * COIN;
+    if (nHeight == 7778029) return 60 * COIN;
+    if (nHeight == 7259627) return 60 * COIN;
+    if (nHeight == 6741225) return 60 * COIN;
+    if (nHeight == 6222823) return 60 * COIN;
+    if (nHeight == 5704421) return 60 * COIN;
+    if (nHeight == 5186019) return 60 * COIN;
+    if (nHeight == 4667617) return 60 * COIN;
+    if (nHeight == 4149215) return 60 * COIN;
+    if (nHeight == 3630813) return 60 * COIN;
+    if (nHeight == 3112411) return 60 * COIN;
+    if (nHeight == 2594009) return 60 * COIN;
+    if (nHeight == 2075607) return 60 * COIN;
+    if (nHeight == 1557205) return 60 * COIN;
+    if (nHeight == 1038803) return 60 * COIN;
+  //  if (nHeight == 520401) return 60 * COIN;
 
     return 0;
 }
@@ -2013,6 +2016,11 @@ bool static ConnectTip(CValidationState& state, CBlockIndex* pindexNew, const st
     // Update MN manager cache
     mnodeman.CacheBlockHash(pindexNew);
     mnodeman.CheckSpentCollaterals(blockConnecting.vtx);
+    // On the block where the required masternode collateral changes, evict masternodes
+    // whose collateral no longer matches the new required amount.
+    if (pindexNew->nHeight > 0 &&
+            GetMNCollateral(pindexNew->nHeight) != GetMNCollateral(pindexNew->nHeight - 1))
+        mnodeman.RemoveLegacyCollateral(pindexNew->nHeight);
 
     int64_t nTime6 = GetTimeMicros();
     nTimePostConnect += nTime6 - nTime5;

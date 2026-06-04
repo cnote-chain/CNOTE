@@ -506,7 +506,12 @@ void TopBar::setNumBlocks(int count)
             ui->pushButtonSync->setButtonText(tr("Synchronized - Block: %1").arg(QString::number(count)));
             progressBar->setRange(0,100);
             progressBar->setValue(100);
-            refreshStatus();
+            // Rate-limit: refreshStatus() calls mnodeman.Find() under a lock on every block —
+            // cap to once every 10 blocks to avoid intermittent UI-thread freeze.
+            if (count - m_lastRefreshStatusBlock >= 10) {
+                m_lastRefreshStatusBlock = count;
+                refreshStatus();
+            }
             return;
         } else {
 
@@ -596,9 +601,11 @@ void TopBar::refreshMasternodeStatus()
             if (!mne.castOutputIndex(nIndex))
                 continue;
 
+            // Use COutPoint-based Find (O(log n) map lookup) instead of
+            // CTxIn-based Find (O(n) linear scan over all network masternodes).
             uint256 txHash(mne.getTxHash());
-            CTxIn txIn(txHash, uint32_t(nIndex));
-            auto pmn = mnodeman.Find(txIn);
+            COutPoint outpoint(txHash, uint32_t(nIndex));
+            auto pmn = mnodeman.Find(outpoint);
 
             if (!pmn) continue;
 
@@ -641,7 +648,10 @@ void TopBar::loadWalletModel()
     // update the display unit, to not use the default ("C_Note")
     updateDisplayUnit();
 
-    refreshStatus();
+    // Defer the first refreshStatus() — it iterates masternodeConfig entries and
+    // takes mnodeman locks, which can stall the GUI thread at open. singleShot(0)
+    // lets the top bar paint before the lookup runs.
+    QTimer::singleShot(0, this, &TopBar::refreshStatus);
     onColdStakingClicked();
 
     isInitializing = false;
@@ -687,6 +697,12 @@ void TopBar::refreshStatus()
 
     WalletModel::EncryptionStatus encStatus = walletModel->getEncryptionStatus();
 
+    // updateStyle() forces a stylesheet polish which on Windows triggers icon
+    // reloads through QPixmap::fromWinHICON. Only re-polish when the lock state
+    // actually changes — this does not affect wallet logic, only display.
+    const bool encStatusChanged = (static_cast<int>(encStatus) != m_lastEncStatus);
+    m_lastEncStatus = static_cast<int>(encStatus);
+
     switch (encStatus) {
         case WalletModel::EncryptionStatus::Unencrypted:
             ui->pushButtonLock->setButtonText(tr("Wallet Unencrypted"));
@@ -705,7 +721,9 @@ void TopBar::refreshStatus()
             ui->pushButtonLock->setButtonClassStyle("cssClass", "btn-check-status-unlock", true);
             break;
     }
-    updateStyle(ui->pushButtonLock);
+    if (encStatusChanged) {
+        updateStyle(ui->pushButtonLock);
+    }
 
     // Collateral
     ui->labelCollateralCNote->setText(GUIUtil::formatBalance(CMasternode::GetMNCollateral(chainActive.Tip()->nHeight) * COIN, nDisplayUnit));

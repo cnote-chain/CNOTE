@@ -156,9 +156,10 @@ endef
 
 define $(package)_preprocess_cmds
   sed -i.old "s|FT_Get_Font_Format|FT_Get_X11_Font_Format|" qtbase/src/platformsupport/fontdatabases/freetype/qfontengine_ft.cpp && \
-  sed -i.old "s|updateqm.commands = \$$$$\$$$$LRELEASE|updateqm.commands = $($(package)_extract_dir)/qttools/bin/lrelease|" qttranslations/translations/translations.cnote && \
-  sed -i.old "/updateqm.depends =/d" qttranslations/translations/translations.cnote && \
-  sed -i.old "s/src_plugins.depends = src_sql src_network/src_plugins.depends = src_network/" qtbase/src/src.cnote && \
+  sed -i.old "s|#include <QtCore/qbytearray.h>|#include <QtCore/qbytearray.h>\n#include <limits>|" qtbase/src/corelib/tools/qbytearraymatcher.h && \
+  sed -i.old "s|updateqm.commands = \$$$$\$$$$LRELEASE|updateqm.commands = $($(package)_extract_dir)/qttools/bin/lrelease|" qttranslations/translations/translations.pro && \
+  sed -i.old "/updateqm.depends =/d" qttranslations/translations/translations.pro && \
+  sed -i.old "s/src_plugins.depends = src_sql src_network/src_plugins.depends = src_network/" qtbase/src/src.pro && \
   sed -i.old "s|X11/extensions/XIproto.h|X11/X.h|" qtbase/src/plugins/platforms/xcb/qxcbxsettings.cpp && \
   sed -i.old -e 's/if \[ "$$$$XPLATFORM_MAC" = "yes" \]; then xspecvals=$$$$(macSDKify/if \[ "$$$$BUILD_ON_MAC" = "yes" \]; then xspecvals=$$$$(macSDKify/' -e 's|/bin/pwd|pwd|' qtbase/configure && \
   sed -i.old 's/CGEventCreateMouseEvent(0, kCGEventMouseMoved, pos, 0)/CGEventCreateMouseEvent(0, kCGEventMouseMoved, pos, kCGMouseButtonLeft)/' qtbase/src/plugins/platforms/cocoa/qcocoacursor.mm && \
@@ -199,16 +200,16 @@ define $(package)_config_cmds
   echo "host_build: QT_CONFIG ~= s/system-zlib/zlib" >> mkspecs/qconfig.pri && \
   echo "CONFIG += force_bootstrap" >> mkspecs/qconfig.pri && \
   $(MAKE) sub-src-clean && \
-  cd ../qttranslations && ../qtbase/bin/qmake qttranslations.cnote -o Makefile && \
-  cd translations && ../../qtbase/bin/qmake translations.cnote -o Makefile && cd ../.. && \
-  cd qttools/src/linguist/lrelease/ && ../../../../qtbase/bin/qmake lrelease.cnote -o Makefile && \
-  cd ../lupdate/ && ../../../../qtbase/bin/qmake lupdate.cnote -o Makefile && cd ../../../.. && \
-  cd qtsvg && ../qtbase/bin/qmake qtsvg.cnote -o Makefile && \
-  cd src/svg && ../../../qtbase/bin/qmake svg.cnote -o Makefile && cd ../../.. && \
-  cd qtsvg/src/plugins && ../../../qtbase/bin/qmake plugins.cnote -o Makefile && cd ../../.. && \
-  cd qtsvg/src/plugins/imageformats && ../../../../qtbase/bin/qmake imageformats.cnote -o Makefile && cd ../../../.. && \
-  cd qtsvg/src/plugins/imageformats/svg && ../../../../../qtbase/bin/qmake svg.cnote -o Makefile && cd ../../../../.. && \
-  cd qtcharts && ../qtbase/bin/qmake qtcharts.cnote -o Makefile
+  cd ../qttranslations && ../qtbase/bin/qmake qttranslations.pro -o Makefile && \
+  cd translations && ../../qtbase/bin/qmake translations.pro -o Makefile && cd ../.. && \
+  cd qttools/src/linguist/lrelease/ && ../../../../qtbase/bin/qmake lrelease.pro -o Makefile && \
+  cd ../lupdate/ && ../../../../qtbase/bin/qmake lupdate.pro -o Makefile && cd ../../../.. && \
+  cd qtsvg && ../qtbase/bin/qmake qtsvg.pro -o Makefile && \
+  cd src/svg && ../../../qtbase/bin/qmake svg.pro -o Makefile && cd ../../.. && \
+  cd qtsvg/src/plugins && ../../../qtbase/bin/qmake plugins.pro -o Makefile && cd ../../.. && \
+  cd qtsvg/src/plugins/imageformats && ../../../../qtbase/bin/qmake imageformats.pro -o Makefile && cd ../../../.. && \
+  cd qtsvg/src/plugins/imageformats/svg && ../../../../../qtbase/bin/qmake svg.pro -o Makefile && cd ../../../../.. && \
+  cd qtcharts && ../qtbase/bin/qmake qtcharts.pro -o Makefile
 endef
 
 define $(package)_build_cmds

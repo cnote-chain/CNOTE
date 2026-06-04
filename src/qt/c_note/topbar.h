@@ -83,6 +83,8 @@ private:
     QProgressBar* progressBar = nullptr;
 
     int nDisplayUnit = -1;
+    int m_lastRefreshStatusBlock = 0;
+    int m_lastEncStatus = -1;
     QTimer* timerStakingIcon = nullptr;
     bool isInitializing = true;
 

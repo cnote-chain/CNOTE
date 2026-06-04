@@ -26,10 +26,12 @@
 #include <QCursor>
 #include <QDialogButtonBox>
 #include <QFlags>
+#include <QFutureWatcher>
 #include <QIcon>
 #include <QSettings>
 #include <QString>
 #include <QTreeWidget>
+#include <QtConcurrent/QtConcurrent>
 
 
 bool CCoinControlWidgetItem::operator<(const QTreeWidgetItem &other) const {
@@ -750,22 +752,71 @@ void CoinControlDialog::updateView()
     if (!model || !model->getOptionsModel() || !model->getAddressTableModel())
         return;
 
+    // If a load is already running, schedule a refresh for when it finishes
+    if (m_coinsWatcher) {
+        m_pendingRefresh = true;
+        return;
+    }
+
+    ui->treeWidget->clear();
+    ui->treeWidget->setEnabled(false);
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+
+    bool selectTransparent = fSelectTransparent;
+    WalletModel* walletModel = model;
+
+    m_coinsWatcher = new QFutureWatcher<CoinsMap>(this);
+    connect(m_coinsWatcher, &QFutureWatcher<CoinsMap>::finished,
+            this, &CoinControlDialog::onCoinsLoaded);
+
+    m_coinsWatcher->setFuture(QtConcurrent::run([walletModel, selectTransparent]() -> CoinsMap {
+        CoinsMap mapCoins;
+        walletModel->listCoins(mapCoins, selectTransparent);
+        return mapCoins;
+    }));
+}
+
+void CoinControlDialog::onCoinsLoaded()
+{
+    if (!m_coinsWatcher) return;
+
+    CoinsMap mapCoins = m_coinsWatcher->result();
+    m_coinsWatcher->deleteLater();
+    m_coinsWatcher = nullptr;
+
+    QApplication::restoreOverrideCursor();
+    populateView(mapCoins);
+    updateLabelLocked();
+    updateLabels();
+
+    if (m_pendingRefresh) {
+        m_pendingRefresh = false;
+        updateView();
+    }
+}
+
+void CoinControlDialog::populateView(const CoinsMap& mapCoins)
+{
     bool treeMode = ui->radioTreeMode->isChecked();
     ui->treeWidget->setRootIsDecorated(treeMode);
 
-    ui->treeWidget->clear();
-    ui->treeWidget->setEnabled(false); // performance, otherwise updateLabels would be called for every checked checkbox
+    // Disable sorting and repaints during bulk insertion for speed
+    ui->treeWidget->setSortingEnabled(false);
+    ui->treeWidget->setUpdatesEnabled(false);
+    ui->treeWidget->setEnabled(false);
+
     QFlags<Qt::ItemFlag> flgCheckbox = Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsUserCheckable;
     QFlags<Qt::ItemFlag> flgTristate = Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsTristate;
 
     int nDisplayUnit = model->getOptionsModel()->getDisplayUnit();
     nSelectableInputs = 0;
-    std::map<WalletModel::ListCoinsKey, std::vector<WalletModel::ListCoinsValue>> mapCoins;
-    model->listCoins(mapCoins, fSelectTransparent);
+
+    // Cap rows to avoid UI freeze on wallets with massive UTXO sets.
+    // nSelectableInputs will reflect true count for label; only display is limited.
+    static const int MAX_DISPLAY_UTXOS = 5000;
+    int nDisplayed = 0;
 
     for (const auto& coins : mapCoins) {
-        CCoinControlWidgetItem* itemWalletAddress = new CCoinControlWidgetItem();
-        itemWalletAddress->setCheckState(COLUMN_CHECKBOX, Qt::Unchecked);
         const WalletModel::ListCoinsKey& keys = coins.first;
         const QString& sWalletAddress = keys.address;
         const Optional<QString>& stakerAddress = keys.stakerAddress;
@@ -773,60 +824,68 @@ void CoinControlDialog::updateView()
         if (sWalletLabel.isEmpty())
             sWalletLabel = tr("(no label)");
 
+        // Create parent node but do NOT add to tree yet in tree mode —
+        // we add it only after at least one child is actually displayed.
+        CCoinControlWidgetItem* itemWalletAddress = new CCoinControlWidgetItem();
+        itemWalletAddress->setCheckState(COLUMN_CHECKBOX, Qt::Unchecked);
         if (treeMode) {
-            // wallet address
-            ui->treeWidget->addTopLevelItem(itemWalletAddress);
-
             itemWalletAddress->setFlags(flgTristate);
-            itemWalletAddress->setCheckState(COLUMN_CHECKBOX, Qt::Unchecked);
-
-            // label
             itemWalletAddress->setText(COLUMN_LABEL, sWalletLabel);
             itemWalletAddress->setToolTip(COLUMN_LABEL, sWalletLabel);
-
-            // address
             itemWalletAddress->setText(COLUMN_ADDRESS, sWalletAddress);
             itemWalletAddress->setToolTip(COLUMN_ADDRESS, sWalletAddress);
         }
 
         CAmount nSum = 0;
         int nChildren = 0;
+        int nShown = 0;
         for (const WalletModel::ListCoinsValue& out : coins.second) {
             ++nSelectableInputs;
             nSum += out.nValue;
             nChildren++;
 
-            loadAvailableCoin(treeMode, itemWalletAddress, flgCheckbox, flgTristate,
-                              nDisplayUnit, sWalletAddress, stakerAddress, sWalletLabel,
-                              out.txhash, out.outIndex, out.nValue, out.nTime, out.nDepth,
-                              keys.isChange);
+            if (nDisplayed < MAX_DISPLAY_UTXOS) {
+                // Lazily add the parent group header the first time a child is shown
+                if (treeMode && nShown == 0)
+                    ui->treeWidget->addTopLevelItem(itemWalletAddress);
+
+                loadAvailableCoin(treeMode, itemWalletAddress, flgCheckbox, flgTristate,
+                                  nDisplayUnit, sWalletAddress, stakerAddress, sWalletLabel,
+                                  out.txhash, out.outIndex, out.nValue, out.nTime, out.nDepth,
+                                  keys.isChange);
+                ++nDisplayed;
+                ++nShown;
+            }
         }
 
-        // amount
-        if (treeMode) {
+        if (treeMode && nShown > 0) {
             itemWalletAddress->setText(COLUMN_CHECKBOX, "(" + QString::number(nChildren) + ")");
             itemWalletAddress->setText(COLUMN_AMOUNT, BitcoinUnits::format(nDisplayUnit, nSum));
             itemWalletAddress->setToolTip(COLUMN_AMOUNT, BitcoinUnits::format(nDisplayUnit, nSum));
             itemWalletAddress->setData(COLUMN_AMOUNT, Qt::UserRole, QVariant((qlonglong) nSum));
+        } else if (!treeMode && nShown == 0) {
+            delete itemWalletAddress; // not added to tree, nothing to parent it — free it
         }
     }
 
-    // expand all partially selected
+    if (nDisplayed >= MAX_DISPLAY_UTXOS && nSelectableInputs > MAX_DISPLAY_UTXOS) {
+        inform(tr("Showing first %1 of %2 UTXOs. Use the Send screen filters to narrow results.")
+               .arg(MAX_DISPLAY_UTXOS).arg(nSelectableInputs));
+    }
+
     if (treeMode) {
         for (int i = 0; i < ui->treeWidget->topLevelItemCount(); i++)
             if (ui->treeWidget->topLevelItem(i)->checkState(COLUMN_CHECKBOX) == Qt::PartiallyChecked)
                 ui->treeWidget->topLevelItem(i)->setExpanded(true);
-        // restore saved width for COLUMN_CHECKBOX
         ui->treeWidget->setColumnWidth(COLUMN_CHECKBOX, colCheckBoxWidth_treeMode);
     } else {
-        // save COLUMN_CHECKBOX width for tree-mode
         colCheckBoxWidth_treeMode = std::max(110, ui->treeWidget->columnWidth(COLUMN_CHECKBOX));
-        // minimize COLUMN_CHECKBOX width in list-mode (need to display only the check box)
         ui->treeWidget->setColumnWidth(COLUMN_CHECKBOX, 70);
     }
 
-    // sort view
+    ui->treeWidget->setUpdatesEnabled(true);
     sortView(sortColumn, sortOrder);
+    ui->treeWidget->setSortingEnabled(true);
     ui->treeWidget->setEnabled(true);
 }
 

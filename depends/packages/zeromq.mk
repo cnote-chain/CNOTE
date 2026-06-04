@@ -9,6 +9,7 @@ define $(package)_set_vars
   $(package)_config_opts=--without-docs --disable-shared --without-libsodium --disable-curve --disable-curve-keygen --disable-perf --disable-Werror
   $(package)_config_opts_linux=--with-pic
   $(package)_cxxflags=-std=c++11
+  $(package)_cxxflags_darwin=-isystem $(host_prefix)/native/include/c++/v1
 endef
 
 define $(package)_preprocess_cmds

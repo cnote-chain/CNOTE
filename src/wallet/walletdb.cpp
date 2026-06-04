@@ -316,7 +316,10 @@ bool CWalletDB::WriteAutoCombineSettings(bool fEnable, CAmount nCombineThreshold
     std::pair<bool, CAmount> pSettings;
     pSettings.first = fEnable;
     pSettings.second = nCombineThreshold;
-    return batch.Write(std::string("autocombinesettings"), pSettings, true);
+    // Write under the v2 key (satoshi-denominated). The legacy
+    // "autocombinesettings" key (whole-coin units) is left untouched for
+    // wallets that may be downgraded; the loader prefers v2 when present.
+    return batch.Write(std::string("autocombinesettingsv2"), pSettings, true);
 }
 
 bool CWalletDB::ReadPool(int64_t nPool, CKeyPool& keypool)
@@ -634,10 +637,22 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             pwallet->vDisabledAddresses.push_back(strDisabledAddress);
             */
         } else if (strType == "autocombinesettings") {
+            // Legacy key: threshold was stored as whole-coin units and
+            // multiplied by COIN at use-time. Scale up so it matches the
+            // new satoshi-denominated representation. A newer
+            // "autocombinesettingsv2" entry (if present) overrides this.
+            std::pair<bool, CAmount> pSettings;
+            ssValue >> pSettings;
+            if (!pwallet->fAutoCombineSettingsV2Loaded) {
+                pwallet->fCombineDust = pSettings.first;
+                pwallet->nAutoCombineThreshold = pSettings.second * COIN;
+            }
+        } else if (strType == "autocombinesettingsv2") {
             std::pair<bool, CAmount> pSettings;
             ssValue >> pSettings;
             pwallet->fCombineDust = pSettings.first;
             pwallet->nAutoCombineThreshold = pSettings.second;
+            pwallet->fAutoCombineSettingsV2Loaded = true;
         } else if (strType == "destdata") {
             std::string strAddress, strKey, strValue;
             ssKey >> strAddress;

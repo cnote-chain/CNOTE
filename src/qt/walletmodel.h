@@ -380,6 +380,9 @@ private:
     EncryptionStatus cachedEncryptionStatus;
     int cachedNumBlocks;
     uint256 m_cached_best_block_hash;
+    // True once an initial block download has been observed this session; used
+    // to fire a one-time transaction-model reload when IBD completes.
+    bool m_sawInitialBlockDownload{false};
 
     QTimer* pollTimer;
     QFuture<void> pollFuture;

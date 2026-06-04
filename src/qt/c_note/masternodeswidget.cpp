@@ -23,6 +23,7 @@
 #include "qt/c_note/optionbutton.h"
 #include "sync.h"
 #include "util.h"
+#include "validation.h"
 #include "wallet/wallet.h"
 #include <fstream>
 #include <iostream>
@@ -131,7 +132,11 @@ MasterNodesWidget::MasterNodesWidget(C_NoteGUI* parent) : PWidget(parent),
 
 void MasterNodesWidget::showEvent(QShowEvent* event)
 {
-    if (mnModel) mnModel->updateMNList();
+    // Defer the (locking) update until after the widget has painted so the
+    // tab transition feels instant. updateMNList must run on the GUI thread —
+    // it mutates the model and emits dataChanged — so we yield via
+    // singleShot(0) rather than moving it to a worker.
+    if (mnModel) QTimer::singleShot(0, this, [this]() { if (mnModel) mnModel->updateMNList(); });
     if (!timer) {
         timer = new QTimer(this);
         connect(timer, &QTimer::timeout, [this]() { mnModel->updateMNList(); });
@@ -475,8 +480,9 @@ void MasterNodesWidget::onCreateMNClicked()
         return;
     }
 
-    if (walletModel->getBalance() <= GetMNCollateral(0) * COIN) {
-        inform(tr("Not enough balance to create a masternode.").arg(GetMNCollateral(0)));
+    const int nCurrentHeight = chainActive.Height();
+    if (walletModel->getBalance() <= GetMNCollateral(nCurrentHeight) * COIN) {
+        inform(tr("Not enough balance to create a masternode, %1 CNOTE required.").arg(GetMNCollateral(nCurrentHeight)));
         return;
     }
     showHideOp(true);

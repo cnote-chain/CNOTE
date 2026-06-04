@@ -18,6 +18,7 @@
 #include "sync.h"
 #include "uint256.h"
 #include "util.h"
+#include "validation.h" // for IsInitialBlockDownload()
 #include "wallet/wallet.h"
 
 #include <algorithm>
@@ -33,9 +34,17 @@
 #define SINGLE_THREAD_MAX_TXES_SIZE 4000
 
 // Maximum amount of loaded records in ram in the first load.
-// If the user has more and want to load them:
-// TODO, add load on demand in pages (not every tx loaded all the time into the records list).
+// If the user has more and want to load them via the "Load More" button,
+// loadMore() appends additional batches up to the wallet's total tx count.
 #define MAX_AMOUNT_LOADED_RECORDS 20000
+
+// Initial number of transactions decomposed at wallet open. Keeping this small
+// (vs the wallet's full mapWallet, which can be tens of thousands of MN-reward
+// entries) is what prevents the GUI freeze at startup.
+#define INITIAL_LOADED_RECORDS 100
+
+// How many additional records to decompose each time loadMore() is called.
+#define LOAD_MORE_BATCH 100
 
 // Amount column is right-aligned it contains numbers
 static int column_alignments[] = {
@@ -92,6 +101,56 @@ public:
      * It can or not be the first tx in the wallet, the model only loads the last 20k txs.
      */
     qint64 nFirstLoadedTxTime{0};
+
+    /* Build a batch of records from the wallet WITHOUT touching cachedWallet
+     * or any Qt model state. Safe to call from a worker thread.
+     *
+     *   limit       : max number of wallet txs to decompose (oldest-time cap)
+     *   skipNewerThan : if > 0, ignore txs with time >= skipNewerThan (used by
+     *                   loadMore to skip the records already loaded)
+     *   outTotalWalletTxCount : populated with the wallet's total tx count, so
+     *                   the view knows whether more pages exist.
+     */
+    static void buildRecordsAsync(CWallet* wallet, TransactionTablePriv* tablePriv,
+                                  int limit, qint64 skipNewerThan,
+                                  QList<TransactionRecord>& outRecords,
+                                  qint64& outOldestTxTime,
+                                  int& outTotalWalletTxCount)
+    {
+        outRecords.clear();
+        outOldestTxTime = 0;
+
+        std::vector<CWalletTx> walletTxes = wallet->getWalletTxs();
+        outTotalWalletTxCount = (int)walletTxes.size();
+
+        // Sort newest-first so we always serve the user the most recent slice.
+        sort(walletTxes.begin(), walletTxes.end(),
+             [](const CWalletTx& a, const CWalletTx& b) -> bool {
+                 return a.GetTxTime() > b.GetTxTime();
+             });
+
+        // Skip records already loaded by an earlier batch. Use >= so a tx at
+        // the exact watermark time isn't decomposed a second time.
+        if (skipNewerThan > 0) {
+            auto it = std::lower_bound(walletTxes.begin(), walletTxes.end(), skipNewerThan,
+                                       [](const CWalletTx& tx, qint64 t) {
+                                           return tx.GetTxTime() >= t;
+                                       });
+            walletTxes.erase(walletTxes.begin(), it);
+        }
+
+        if ((int)walletTxes.size() > limit) {
+            // CWalletTx has no default constructor, so resize() is not usable;
+            // erase the tail instead.
+            walletTxes.erase(walletTxes.begin() + limit, walletTxes.end());
+        }
+
+        // Decompose on this worker thread. Avoid spawning more threads here —
+        // the batches are small (100) so single-threaded is plenty fast.
+        ConvertTxToVectorResult res = convertTxToRecords(tablePriv, wallet, walletTxes);
+        outRecords = res.records;
+        outOldestTxTime = res.nFirstLoadedTxTime;
+    }
 
     /* Query entire wallet anew from core.
      */
@@ -193,8 +252,6 @@ public:
      */
     void updateWallet(const uint256& hash, int status, bool showTransaction, TransactionRecord& ret)
     {
-        qDebug() << "TransactionTablePriv::updateWallet : " + QString::fromStdString(hash.ToString()) + " " + QString::number(status);
-
         // Find bounds of this transaction in model
         QList<TransactionRecord>::iterator lower = std::lower_bound(
             cachedWallet.begin(), cachedWallet.end(), hash, TxLessThan());
@@ -211,9 +268,9 @@ public:
                 status = CT_DELETED; /* In model, but want to hide, treat as deleted */
         }
 
-        qDebug() << "    inModel=" + QString::number(inModel) +
-                        " Index=" + QString::number(lowerIndex) + "-" + QString::number(upperIndex) +
-                        " showTransaction=" + QString::number(showTransaction) + " derivedStatus=" + QString::number(status);
+        // NOTE: tracing intentionally omitted here. This runs once per wallet tx
+        // per confirmation change; on large wallets the sync flood made the
+        // hash->hex formatting alone a measurable GUI-thread cost.
 
         switch (status) {
             case CT_NEW:
@@ -229,9 +286,15 @@ public:
                         break;
                     }
 
-                    // As old transactions are still getting updated (+20k range),
-                    // do not add them if we deliberately didn't load them at startup.
-                    if (cachedWallet.size() >= MAX_AMOUNT_LOADED_RECORDS && wtx->GetTxTime() < nFirstLoadedTxTime) {
+                    // Don't auto-insert transactions older than the currently
+                    // loaded window — they belong to a page the user hasn't
+                    // opened via "Load more". Without this guard the flood of
+                    // confirmation updates during sync re-inserts the entire
+                    // wallet (hundreds of thousands of MN rewards here), which
+                    // bloats the model and freezes the GUI thread. Genuinely
+                    // new txs carry a current timestamp >= the watermark and so
+                    // still pass through and get displayed.
+                    if (nFirstLoadedTxTime > 0 && wtx->GetTxTime() < nFirstLoadedTxTime) {
                         return;
                     }
 
@@ -305,11 +368,138 @@ TransactionTableModel::TransactionTableModel(CWallet* wallet, WalletModel* paren
                                                                                      fProcessingQueuedTransactions(false)
 {
     columns << QString() << QString() << tr("Date") << tr("Type") << tr("Address") << BitcoinUnits::getAmountColumnTitle(walletModel->getOptionsModel()->getDisplayUnit());
-    priv->refreshWallet();
 
     connect(walletModel->getOptionsModel(), &OptionsModel::displayUnitChanged, this, &TransactionTableModel::updateDisplayUnit);
 
+    // Defer the initial wallet load to a worker thread so the GUI can paint
+    // immediately. We only decompose the latest INITIAL_LOADED_RECORDS txs at
+    // open; the rest are fetched on demand via loadMore(). This is what
+    // prevents the multi-second freeze on wallets with many MN reward entries.
+    // subscribeToCoreSignals() is delayed until the load completes so incoming
+    // tx notifications don't race with the worker writing the record list.
+    CWallet* w = wallet;
+    TransactionTablePriv* p = priv;
+    m_loadWatcher = new QFutureWatcher<void>(this);
+    connect(m_loadWatcher, &QFutureWatcher<void>::finished,
+            this, &TransactionTableModel::onInitialLoadFinished);
+    m_loadWatcher->setFuture(QtConcurrent::run([this, w, p]() {
+        TransactionTablePriv::buildRecordsAsync(w, p, INITIAL_LOADED_RECORDS, 0,
+                                                m_pendingRecords,
+                                                m_pendingFirstLoadedTxTime,
+                                                m_pendingTotalWalletTxCount);
+    }));
+}
+
+void TransactionTableModel::onInitialLoadFinished()
+{
+    beginResetModel();
+    priv->cachedWallet = m_pendingRecords;
+    priv->nFirstLoadedTxTime = m_pendingFirstLoadedTxTime;
+    endResetModel();
+
+    m_totalWalletTxCount = m_pendingTotalWalletTxCount;
+    m_pendingRecords.clear();
+
+    if (m_loadWatcher) {
+        m_loadWatcher->deleteLater();
+        m_loadWatcher = nullptr;
+    }
+    m_initialLoadDone = true;
+
+    // Now that the cache is populated, hook into core signals.
     subscribeToCoreSignals();
+
+    Q_EMIT loadStateChanged();
+}
+
+void TransactionTableModel::loadMore(int additional)
+{
+    if (!m_initialLoadDone || m_loadingMore) return;
+    if (size() >= m_totalWalletTxCount) return; // nothing left
+    if (additional <= 0) additional = LOAD_MORE_BATCH;
+
+    m_loadingMore = true;
+    Q_EMIT loadStateChanged();
+
+    CWallet* w = wallet;
+    TransactionTablePriv* p = priv;
+    const qint64 watermark = priv->nFirstLoadedTxTime;
+    const int batch = additional;
+
+    m_loadMoreWatcher = new QFutureWatcher<void>(this);
+    connect(m_loadMoreWatcher, &QFutureWatcher<void>::finished,
+            this, &TransactionTableModel::onLoadMoreFinished);
+    m_loadMoreWatcher->setFuture(QtConcurrent::run([this, w, p, watermark, batch]() {
+        TransactionTablePriv::buildRecordsAsync(w, p, batch, watermark,
+                                                m_pendingRecords,
+                                                m_pendingFirstLoadedTxTime,
+                                                m_pendingTotalWalletTxCount);
+    }));
+}
+
+void TransactionTableModel::onLoadMoreFinished()
+{
+    if (!m_pendingRecords.isEmpty()) {
+        const int firstNew = priv->cachedWallet.size();
+        const int lastNew = firstNew + m_pendingRecords.size() - 1;
+        beginInsertRows(QModelIndex(), firstNew, lastNew);
+        priv->cachedWallet.append(m_pendingRecords);
+        if (m_pendingFirstLoadedTxTime > 0 &&
+            (priv->nFirstLoadedTxTime == 0 || m_pendingFirstLoadedTxTime < priv->nFirstLoadedTxTime)) {
+            priv->nFirstLoadedTxTime = m_pendingFirstLoadedTxTime;
+        }
+        endInsertRows();
+    }
+    m_totalWalletTxCount = m_pendingTotalWalletTxCount;
+    m_pendingRecords.clear();
+
+    if (m_loadMoreWatcher) {
+        m_loadMoreWatcher->deleteLater();
+        m_loadMoreWatcher = nullptr;
+    }
+    m_loadingMore = false;
+
+    Q_EMIT loadStateChanged();
+}
+
+void TransactionTableModel::reload()
+{
+    // Re-run the initial async load (latest INITIAL_LOADED_RECORDS txs). Called
+    // by WalletModel once the initial block download finishes, because per-tx
+    // notifications were suppressed during sync (see NotifyTransactionChanged),
+    // so any tx discovered while syncing isn't in the model yet. Does NOT
+    // re-subscribe to core signals — that was already done at first load.
+    if (!m_initialLoadDone || m_loadWatcher || m_loadingMore) return;
+
+    CWallet* w = wallet;
+    TransactionTablePriv* p = priv;
+    m_loadWatcher = new QFutureWatcher<void>(this);
+    connect(m_loadWatcher, &QFutureWatcher<void>::finished,
+            this, &TransactionTableModel::onReloadFinished);
+    m_loadWatcher->setFuture(QtConcurrent::run([this, w, p]() {
+        TransactionTablePriv::buildRecordsAsync(w, p, INITIAL_LOADED_RECORDS, 0,
+                                                m_pendingRecords,
+                                                m_pendingFirstLoadedTxTime,
+                                                m_pendingTotalWalletTxCount);
+    }));
+}
+
+void TransactionTableModel::onReloadFinished()
+{
+    beginResetModel();
+    priv->cachedWallet = m_pendingRecords;
+    priv->nFirstLoadedTxTime = m_pendingFirstLoadedTxTime;
+    endResetModel();
+
+    m_totalWalletTxCount = m_pendingTotalWalletTxCount;
+    m_pendingRecords.clear();
+
+    if (m_loadWatcher) {
+        m_loadWatcher->deleteLater();
+        m_loadWatcher = nullptr;
+    }
+
+    Q_EMIT loadStateChanged();
 }
 
 TransactionTableModel::~TransactionTableModel()
@@ -786,7 +976,6 @@ public:
     void invoke(QObject* ttm)
     {
         QString strHash = QString::fromStdString(hash.GetHex());
-        qDebug() << "NotifyTransactionChanged : " + strHash + " status= " + QString::number(status);
         QMetaObject::invokeMethod(ttm, "updateTransaction", Qt::QueuedConnection,
             Q_ARG(QString, strHash),
             Q_ARG(int, status),
@@ -803,6 +992,13 @@ static std::vector<TransactionNotification> vQueueNotifications;
 
 static void NotifyTransactionChanged(TransactionTableModel* ttm, CWallet* wallet, const uint256& hash, ChangeType status)
 {
+    // During the initial block download the wallet receives a flood of tx
+    // notifications (one per wallet tx in every connected block — on this chain
+    // that means an MN reward almost every block). Posting a queued GUI update
+    // for each one pins the GUI thread at 100% CPU and freezes the UI for the
+    // whole sync. Skip per-tx updates while syncing; WalletModel triggers a
+    // single TransactionTableModel::reload() once IBD completes.
+    if (IsInitialBlockDownload()) return;
 
     TransactionNotification notification(hash, status);
 

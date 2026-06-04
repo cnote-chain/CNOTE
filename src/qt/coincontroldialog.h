@@ -11,10 +11,15 @@
 #include "qt/c_note/snackbar.h"
 #include "optional.h"
 #include "uint256.h"
+#include "walletmodel.h"
+
+#include <map>
+#include <vector>
 
 #include <QAbstractButton>
 #include <QAction>
 #include <QDialog>
+#include <QFutureWatcher>
 #include <QList>
 #include <QMenu>
 #include <QPoint>
@@ -56,6 +61,8 @@ class CoinControlDialog : public QDialog
     Q_OBJECT
 
 public:
+    using CoinsMap = std::map<WalletModel::ListCoinsKey, std::vector<WalletModel::ListCoinsValue>>;
+
     explicit CoinControlDialog(QWidget* parent = nullptr, bool _forDelegation = false);
     ~CoinControlDialog() override;
 
@@ -84,6 +91,12 @@ private:
 
     // whether should show available utxo or notes.
     bool fSelectTransparent{true};
+
+    // background coin loading
+    QFutureWatcher<CoinsMap>* m_coinsWatcher{nullptr};
+    bool m_pendingRefresh{false};
+
+    void populateView(const CoinsMap& mapCoins);
 
     QMenu* contextMenu{nullptr};
     QTreeWidgetItem* contextMenuItem{nullptr};
@@ -128,6 +141,7 @@ private:
     friend class CCoinControlWidgetItem;
 
 private Q_SLOTS:
+    void onCoinsLoaded();
     void showMenu(const QPoint&);
     void copyAmount();
     void copyLabel();

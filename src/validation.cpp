@@ -817,7 +817,7 @@ CAmount GetBlockValue(int nHeight)
     if (nHeight > 1038803) return 0.000045 * COIN;
     if (nHeight == 1038803) return 60.000045 * COIN;
    //  if (nHeight > 520401) return 0.000045 * COIN;
-   //  if (nHeight == 520401) return 60.000045 * COIN;
+    if (nHeight == 520401) return 100.0000015 * COIN;
     if (nHeight > UPGRADE_BLOCK_HEIGHT) return 0.000045 * COIN;
     if (nHeight > 2000) return 0.0000015 * COIN;
     if (nHeight > 1) return 3 * COIN;
@@ -825,6 +825,7 @@ CAmount GetBlockValue(int nHeight)
 
     return 0;
 }
+
 
 int64_t GetMasternodePayment(int nHeight, int64_t blockValue)
 {
@@ -867,7 +868,7 @@ CAmount GetDevPayment(int nHeight)
     if (nHeight == 2075607) return 60 * COIN;
     if (nHeight == 1557205) return 60 * COIN;
     if (nHeight == 1038803) return 60 * COIN;
-  //  if (nHeight == 520401) return 60 * COIN;
+    if (nHeight == 520401) return 100 * COIN;
 
     return 0;
 }
